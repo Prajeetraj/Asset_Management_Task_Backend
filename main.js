@@ -235,6 +235,109 @@ app.put('/asset/:id', (req, res) => {
   );
 });
 
+// TASK 4 - Asset Allocation
+
+// POST – Allocate asset to employee
+app.post('/asset-allocation', async (req, res) => {
+  const { employee_id, asset_id, allocated_quantity } = req.body;
+
+  try {
+    // check employee
+    const emp = await con.query(
+      'SELECT * FROM employee WHERE employee_id=$1',
+      [employee_id]
+    );
+    if (emp.rows.length === 0) {
+      return res.status(400).json({ message: 'Employee not found' });
+    }
+
+    // check asset
+    const assetRes = await con.query(
+      'SELECT * FROM asset_master WHERE asset_id=$1',
+      [asset_id]
+    );
+    if (assetRes.rows.length === 0) {
+      return res.status(400).json({ message: 'Asset not found' });
+    }
+
+    const asset = assetRes.rows[0];
+
+    // already allocated quantity
+    const allocatedRes = await con.query(
+      `SELECT COALESCE(SUM(allocated_quantity),0) AS allocated
+       FROM asset_allocation
+       WHERE asset_id=$1`,
+      [asset_id]
+    );
+
+    const allocated = Number(allocatedRes.rows[0].allocated);
+    const remaining = asset.total_quantity - allocated;
+
+    // business rules
+    if (asset.track_type === 'Unique') {
+      if (allocated > 0) {
+        return res.status(400).json({ message: 'Unique asset already allocated' });
+      }
+      if (allocated_quantity !== 1) {
+        return res.status(400).json({ message: 'Quantity must be 1' });
+      }
+    }
+
+    if (asset.track_type === 'Bulk') {
+      if (allocated_quantity > remaining) {
+        return res.status(400).json({
+          message: `Only ${remaining} quantity available`
+        });
+      }
+    }
+
+    // insert allocation
+    const insert_query = `
+      INSERT INTO asset_allocation
+      (employee_id, asset_id, allocated_quantity)
+      VALUES ($1,$2,$3)
+      RETURNING *;
+    `;
+
+    const result = await con.query(insert_query, [
+      employee_id,
+      asset_id,
+      allocated_quantity
+    ]);
+
+    res.status(201).json({
+      message: 'Asset allocated successfully',
+      data: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(err.message);
+  }
+});
+
+
+// GET – Allocation List
+app.get('/asset-allocation', (req, res) => {
+  const query = `
+    SELECT 
+      e.employee_name,
+      a.asset_name,
+      a.track_type,
+      al.allocated_quantity,
+      al.allocated_date
+    FROM asset_allocation al
+    JOIN employee e ON e.employee_id = al.employee_id
+    JOIN asset_master a ON a.asset_id = al.asset_id
+  `;
+
+  con.query(query, (err, result) => {
+    if (err) {
+      return res.status(500).json(err.message);
+    }
+    res.json(result.rows);
+  });
+});
 
 app.listen(3001, () => {
   console.log('server is running');
