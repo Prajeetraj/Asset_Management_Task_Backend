@@ -17,16 +17,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* ==============================
-   Associations (Like JPA)
-============================== */
-// Employee.hasMany(AssetAllocation, { foreignKey: 'employee_id' });
-// Asset.hasMany(AssetAllocation, { foreignKey: 'asset_id' });
-// Employee.hasMany(AssetAllocation, { foreignKey: 'employee_id' });
-// AssetAllocation.belongsTo(Employee, { foreignKey: 'employee_id' });
 
-// Asset.hasMany(AssetAllocation, { foreignKey: 'asset_id' });
-// AssetAllocation.belongsTo(Asset, { foreignKey: 'asset_id' });
 Employee.hasMany(AssetAllocation, { foreignKey: "employee_id" });
 AssetAllocation.belongsTo(Employee, { foreignKey: "employee_id" });
 
@@ -43,6 +34,28 @@ sequelize.sync()
 /* ==============================
    EMPLOYEE APIs
 ============================== */
+// Get All Categories
+app.get("/Category_Master", async (req, res) => {
+  try {
+    const categories = await Category_Master.findAll({
+      order: [["category_id", "ASC"]]
+    });
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
+});
+
+// // Create Category
+// app.post("/Category_Master", async (req, res) => {
+//   try {
+//     const category = await Category_Master.create(req.body);
+//     res.status(201).json(category);
+//   } catch (err) {
+//     res.status(500).json(err.message);
+//   }
+// });
+
 
 // Create Employee
 app.post('/employee', async (req, res) => {
@@ -110,7 +123,7 @@ app.get('/asset', async (req, res) => {
 app.put('/asset/:id', async (req, res) => {
   await Asset.update(req.body, {
     where: { asset_id: req.params.id }
-  });
+  });   
   const updated = await Asset.findByPk(req.params.id);
   res.json(updated);
 });
@@ -119,6 +132,7 @@ app.put('/asset/:id', async (req, res) => {
 /* ==============================
    ASSET ALLOCATION
 ============================== */
+
 
 app.post('/asset-allocation', async (req, res) => {
   const { employee_id, asset_id, allocated_quantity } = req.body;
@@ -131,6 +145,14 @@ app.post('/asset-allocation', async (req, res) => {
     const asset = await Asset.findByPk(asset_id);
     if (!asset)
       return res.status(400).json({ message: 'Asset not found' });
+
+    // DUPLICATE CHECK - MUST BE INSIDE async
+    const existingAllocation = await AssetAllocation.findOne({
+      where: { asset_id, employee_id }
+    });
+    if (existingAllocation) {
+      return res.status(400).json({ message: 'Employee already allocated this asset' });
+    }
 
     const allocated = await AssetAllocation.sum('allocated_quantity', {
       where: { asset_id }
@@ -166,6 +188,7 @@ app.post('/asset-allocation', async (req, res) => {
     res.status(500).json(err.message);
   }
 });
+
 
 // Get Allocation List (JOIN)
 app.get("/asset-allocation", async (req, res) => {

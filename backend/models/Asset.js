@@ -5,7 +5,7 @@ const sequelize = require('../db');
 const Category = require('./Category_Master');
 const TrackType = require('./Asset_Track_Type_Master');
 
-const Asset = sequelize.define('Asset_Track_Type_master', {
+const Asset = sequelize.define('Asset', {
   asset_id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -13,7 +13,8 @@ const Asset = sequelize.define('Asset_Track_Type_master', {
   },
   asset_name: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    unique:true
   },
   brand: DataTypes.STRING,
   model: DataTypes.STRING,
